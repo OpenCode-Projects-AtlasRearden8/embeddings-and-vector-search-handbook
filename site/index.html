@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Embeddings &amp; Vector Search — Illustrated</title>
+  <meta name="description" content="Interactive, no-key illustrations of embeddings, similarity search, chunking, and when RAG is overkill. Companion to The Embeddings & Vector Search Handbook by Asdale Dynamics, LLC.">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <span class="kicker">The Embeddings &amp; Vector Search Handbook — illustrated companion</span>
+    <h1>What embeddings, vector stores &amp; RAG actually do</h1>
+    <p>Four interactive pictures, zero API keys, zero network calls. Everything on
+    this page runs on your machine, in your browser, right now. Open the <a style="color:#dcebe5" href="../docs/README-reading-guide.md">handbook chapters</a> for the words that go with the pictures.</p>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Sections">
+  <div class="wrap">
+    <a href="#meaning-map">The meaning map</a>
+    <a href="#similarity">Cosine playground</a>
+    <a href="#textpairs">Close words ≈ close vectors</a>
+    <a href="#chunking">Chunking, live</a>
+    <a href="#stores">Picking a (free) vector store</a>
+    <a href="#overkill">Is RAG overkill?</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<!-- 1 ------------------------------------------------------------ -->
+<section id="meaning-map">
+  <h2>1 · The meaning map</h2>
+  <p class="lede">An embedding turns a piece of text into a <em>point in
+  space</em>. Similar meanings land close together, even when the words are
+  completely different. Here's a hand-drawn toy version of that map.</p>
+
+  <div class="demo">
+    <h3>Click anywhere on the map to drop a query vector</h3>
+    <figure>
+      <canvas id="embMap" width="900" height="380" aria-label="Toy embedding map with four topic neighborhoods"></canvas>
+    </figure>
+    <div class="map-legend">
+      <span><span class="dot" style="background:#b98a2f"></span>cooking</span>
+      <span><span class="dot" style="background:#2f6f5e"></span>nursing notes</span>
+      <span><span class="dot" style="background:#6b5aa8"></span>chess</span>
+      <span><span class="dot" style="background:#b3562d"></span>privacy</span>
+    </div>
+    <p class="demo-note">Hover a dot to see the "text" it stands for. Click to drop a
+    <em>query embedding</em>: the dashed lines show a search finding its three nearest
+    neighbors. This is, mechanically, everything embeddings-based retrieval is.</p>
+    <div id="embExplain" class="hidden verdict" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card">
+    <strong>Where the picture is a lie (on purpose):</strong> real embeddings are
+    <em>hundreds of dimensions</em>, not two, and the "distance" is usually cosine
+    similarity on unit-length vectors, not straight-line distance. But the
+    <em>reading</em> of the picture — similar meaning = nearby points, retrieval =
+    grab the neighbors — transfers exactly. Chapter 1 in the handbook explains what
+    the extra dimensions buy you.
+  </div>
+</section>
+
+<!-- 2 ------------------------------------------------------------ -->
+<section id="similarity">
+  <h2>2 · Cosine similarity, hand-draggable</h2>
+  <p class="lede">When a vector store answers a query, the math underneath is
+  mostly one question: <em>do these two arrows point the same way?</em> Drag the
+  two knobs and watch the numbers move.</p>
+
+  <div class="demo">
+    <h3>Drag the two arrow knobs</h3>
+    <figure>
+      <canvas id="simCanvas" width="900" height="340" aria-label="Two draggable unit vectors with live cosine similarity"></canvas>
+    </figure>
+    <div class="sim-readout">
+      <div class="stat"><div class="label">cosine similarity</div><div class="value" id="statCos">–</div></div>
+      <div class="stat"><div class="label">dot product</div><div class="value" id="statDot">–</div></div>
+      <div class="stat"><div class="label">euclidean distance</div><div class="value" id="statDist">–</div></div>
+    </div>
+    <p class="demo-note" id="statNote"></p>
+    <p class="meaning" id="statMeaning"></p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px">
+      <button id="btnPresetSame">Preset: same neighborhood</button>
+      <button id="btnPresetUnrelated" class="secondary">Preset: loosely related</button>
+      <button id="btnPresetOpposite" class="secondary">Preset: unrelated</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <strong>What to notice:</strong> when both vectors are length 1 (which is how
+    embedding models ship), <strong>cosine and dot product give the same number</strong> —
+    that's why libraries use them interchangeably. Euclidean distance moves in the
+    <em>opposite direction</em> of the scores: near-identical vectors have a tiny
+    distance. If your search results "look inverted," this is usually why.
+  </div>
+</section>
+
+<!-- 3 ------------------------------------------------------------ -->
+<section id="textpairs">
+  <h2>3 · Close words vs close <em>vectors</em></h2>
+  <p class="lede">Keyword search matches <em>words</em>. Embedding search matches
+  <em>meaning</em>. They disagree in two directions at once — here are the classic
+  cases, ranked the way an embedding model would (illustrative scores).</p>
+
+  <div class="demo">
+    <p><strong>Query:</strong> <em>&ldquo;Patient stopped breathing overnight&rdquo;</em></p>
+    <table class="vector-table">
+      <thead>
+        <tr><th>Candidate text</th><th>similarity</th><th>why it matters</th></tr>
+      </thead>
+      <tbody id="textPairs"></tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <strong>Both failure modes, in one table:</strong> row 1 shows keyword search
+    <em>missing</em> a true match ("apnea" vs "stopped breathing" — no shared words).
+    Row 2 shows keyword search <em>surface-matching</em> a wrong one ("patient
+    stopped …" — same words, different event). Embedding search gets row 1 right and
+    is <em>less wrong</em> on row 2. But notice: 0.51 is still uncomfortably high.
+    Raw similarity scores are rankings, not verdicts — you read the sources yourself. (Chapter 2.)
+  </div>
+</section>
+
+<!-- 4 ------------------------------------------------------------ -->
+<section id="chunking">
+  <h2>4 · Chunking, live</h2>
+  <p class="lede">You can't embed a whole document usefully — one vector per forty
+  pages is an average, and averages erase. So we cut documents into <em>chunks at
+  natural seams</em> (headings, paragraphs), embed each chunk, and retrieve the few
+  best. Chunk quality is where RAG lives or dies.</p>
+
+  <div class="demo">
+    <h3>Drag the slider and watch the seams</h3>
+    <div class="chunk-controls">
+      <label for="chunkSize">chunk size: <span class="mono" id="chunkSizeVal">–</span></label>
+      <input type="range" id="chunkSize" min="120" max="700" step="20" value="260">
+      <button id="btnChunkReset" class="secondary" onclick="document.getElementById('chunkSize').value=260; document.getElementById('chunkSize').dispatchEvent(new Event('input'))">reset</button>
+    </div>
+    <div class="chunk-output" id="chunkOutput"></div>
+    <p class="demo-note" id="chunkStats"></p>
+  </div>
+
+  <div class="card">
+    <strong>What to notice:</strong> at small sizes, chunks become
+    <strong>orphans</strong> — fragments like <em>"Items must be unused and…"</em>
+    that carry almost no meaning on their own, so they can't match any query well.
+    At huge sizes, chunks cover several topics at once, so they're only
+    <em>moderately</em> similar to everything and rank last. The sweet spot is
+    typically <strong>400–1200 characters</strong>, one topic per chunk, with a
+    little overlap. Chapter 4 is entirely about getting this right.
+  </div>
+</section>
+
+<!-- 5 ------------------------------------------------------------ -->
+<section id="stores">
+  <h2>5 · Picking a (free, local, keyless) vector store</h2>
+  <p class="lede">A vector store does one job — store vectors, answer "which are
+  closest" — plus metadata filters and file persistence. You don't need a
+  subscription for any of this. Here's the honest comparison.</p>
+
+  <table class="compare">
+    <thead>
+      <tr><th></th><th>SQLite-vec</th><th>Chroma</th><th>Ollama embeddings</th><th>OpenAI-compatible local endpoints</th></tr>
+    </thead>
+    <tbody>
+      <tr><th>Role</th><td>store + search (in a plain .db file)</td><td>store + search + filters</td><td><em>runs the embedding models</em></td><td>a wire format many local servers speak</td></tr>
+      <tr><th>Storage</th><td>one <code>.db</code> file — back it up with <code>cp</code></td><td>a local data directory</td><td>model weights on disk</td><td>whatever the server uses</td></tr>
+      <tr><th>Server needed?</th><td>none</td><td>optional</td><td>local process</td><td>local process</td></tr>
+      <tr><th>Best for</th><td>SQL people; data that lives beside other data</td><td>shortest path to working code</td><td>where the vectors come from</td><td>flexibility at the seams</td></tr>
+      <tr><th>Cost</th><td>$0</td><td>$0</td><td>$0</td><td>$0</td></tr>
+      <tr><th>Keys needed</th><td>none</td><td>none</td><td>none</td><td>none</td></tr>
+    </tbody>
+  </table>
+
+  <h3>The whole local stack, one picture</h3>
+  <pre class="codeblock">
+docs → seam-aware chunker → Ollama embeds chunks → vectors + metadata
+        → SQLite-vec or Chroma → cosine search → top-k chunks → LLM (optional)
+  </pre>
+
+  <div class="card">
+    <strong>Dimension hygiene:</strong> all vectors in one collection must come from
+    the <em>same model</em>. <code>nomic-embed-text</code> is 768-dimensional;
+    <code>mxbai-embed-large</code> is 1024. Mixing them in one store is the #1 way
+    to get confidently wrong results. Write your model name into the metadata of
+    every batch. Future-you will send flowers.
+  </div>
+</section>
+
+<!-- 6 ------------------------------------------------------------ -->
+<section id="overkill">
+  <h2>6 · Is RAG overkill? Ask the flow</h2>
+  <p class="lede">Most of the time you don't need RAG, and building it anyway
+  buys you silent failure modes. Answer two questions:</p>
+
+  <div class="demo">
+    <div class="decision" id="decision"></div>
+  </div>
+
+  <div class="card">
+    <strong>The one-line heuristic:</strong> <em>try to answer your question with
+    Ctrl+F first. If you can — no embeddings.</em> RAG is for corpora that are too
+    big, too scattered, worded in ways you can't predict, or growing too fast to
+    index by hand. Everything else is infrastructure cosplay. (Chapter 6.)
+  </div>
+</section>
+
+</div><!-- /wrap -->
+
+<footer>
+  <div class="wrap">
+    <p><strong>The Embeddings &amp; Vector Search Handbook</strong> — illustrated
+    companion site. Part of the beginner-friendly AI library from
+    <strong>Asdale Dynamics, LLC</strong>. Everything here is MIT-licensed,
+    runs offline, and contains zero network calls. The handbook chapters live in
+    <code>../docs/</code>; runnable examples in <code>../examples/</code>.</p>
+    <p>Honest about when RAG is overkill, because a friend would be.</p>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
